@@ -1,0 +1,570 @@
+
+
+<!--  -->
+<?php 
+		$servername = "studentwebfilesus.ipagemysql.com";
+		$server = "cmeier";
+		$dataRow = "";
+		$dataRow2 = "";
+		$totalArr = array();
+		$arrKey = array();
+		$outArr = array();
+		//$outArrKey = array();
+	
+		$conn = new mysqli($servername, $server, $server, $server);
+		if($conn->connect_error)
+		{
+			die("Connection Failed: " . $conn->connect_error);	
+		}
+		
+		$sql = "SELECT GrandOrders.TicketID, GrandOrders.Date, Customers.Address, Customers.Coordinates FROM GrandOrders INNER JOIN Customers ON GrandOrders.CustID = Customers.CustID WHERE GrandOrders.Status = 'OPEN'";		//get the OPEN orders		
+		$result = $conn->query($sql);		
+		
+		if($result->num_rows > 0)
+		{
+		
+			while($row = mysqli_fetch_array($result))
+			{
+				$dataRow = $dataRow . "<tr><td>$row[0]</td><td>$row[2]</td><td>$row[1]</td><td><input type='checkbox' name='cboxOrders'></td><td><button onclick='getMap()'>Map</button></td><td style='visibility:hidden;'>$row[3]</td></tr>";				
+			}
+			
+		}
+					
+		$result = $conn->query("SELECT Nick, DriverID FROM Drivers WHERE ClockedIn = 1");		//Get logged in drivers		
+		if($result->num_rows > 0)
+		{		
+			while($row = mysqli_fetch_array($result))
+			{
+				array_push($totalArr, 0);
+				array_push($arrKey, $row[1]);
+				array_push($outArr, 0);
+			}			
+		}
+		
+		$result = $conn->query("SELECT DriverID FROM GrandOrders WHERE Status = 'IN_PROCESS'");
+		if($result->num_rows > 0)
+		{
+	
+			while($row = mysqli_fetch_array($result))
+			{
+				for($x = 0; $x < count($arrKey); $x++) //for each ID in our array of IDs,
+				{
+					
+					if($row[0] == $arrKey[$x]) //if we have a driver who is out on a delivery that matches this ID
+					{
+						
+						$outArr[$x]++; //increment the amount of deliveries this driver is out on
+						$totalArr[$x]++; //increment the amount of deliveries this driver has had this shift
+					}
+				}
+			}			
+		}
+
+		$result = $conn->query("SELECT DriverID FROM GrandOrders WHERE Status = 'CLOSED' AND Settled = 'NO'");
+		if($result->num_rows > 0)
+		{		
+			while($row = mysqli_fetch_array($result))
+			{
+				for($x = 0; $x < count($arrKey); $x++) //for each ID in our array of IDs,
+				{
+					if($row[0] == $arrKey[$x]) //if we have an order that the driver has returned from but it hasn't been settled (from current shift)
+					{
+						$totalArr[$x]++; //increment the amount of deliveries this driver has had this shift
+					}
+				}
+			}			
+		}
+
+		$result = $conn->query("SELECT Nick, DriverID FROM Drivers WHERE ClockedIn = 1");		//Get logged in drivers		
+		if($result->num_rows > 0)
+		{
+			$temp;
+			while($row = mysqli_fetch_array($result))
+			{
+				for($x = 0; $x < count($arrKey); $x++)
+				{
+					if($row[1] == $arrKey[$x])
+					{
+						$temp = $x;
+					}
+				}
+				$dataRow2 = $dataRow2 . "<tr><td>$row[0] <input type='radio' name='driver' value=$row[0]></td><td>$outArr[$temp]</td><td>$totalArr[$temp]</td><td>$row[1]</td></tr>";
+			}			
+		}
+		
+		$conn->close();
+		
+?>
+
+<html>
+<head>
+<style>
+	th 
+	{
+		border: 1px solid black;
+		text-align: left;
+		padding: 8px;
+	}
+	
+	tr:nth-child(even)
+	{
+		background-color: #dddddd;
+	}
+	.grid-container 
+	{
+		  display: grid;
+		  grid-template-columns: 30% auto auto;
+		  grid-template-rows: 800px;
+		  background-color: #2196F3;
+		  padding: 10px;
+	}
+	.grid-container-inner
+	{
+		  display: grid;
+		  grid-template-columns: auto auto auto;
+		  grid-template-rows: 700px;
+		  background-color: #2196F3;
+		  padding: 10px;
+	}
+	.grid-item 
+	{
+	  background-color: rgba(255, 255, 255, 0.8);
+	  border: 1px solid rgba(0, 0, 0, 0.8);
+	  padding: 2px;
+	  font-size: 30px;
+	  text-align: left;
+	}
+	.grid-item-table
+	{
+	  background-color: rgba(255, 255, 255, 0.8);
+	  border: 1px solid rgba(0, 0, 0, 0.8);
+	  padding: 20px;
+	  font-size: 30px;
+	  text-align: left;
+	}
+	.grid-item-button
+	{
+	  background-color: rgba(255, 255, 255, 0.8);
+	  border: 1px solid rgba(0, 0, 0, 0.8);
+	  padding: 2px;
+	  font-size: 30px;
+	  text-align: left;
+	}
+</style>
+</head>
+<body>
+
+
+
+<!--Needs:
+-->
+
+<div class="grid-container">
+	<div class="grid-item-table">
+		<table id="ordersTable">
+			<tr>
+				<th>Ticket</th>	<th>Address</th> <th>Time</th> <th>Select</th> <th>Map</th> <th style='visibility:hidden;'>Coord</th>
+			</tr>
+			<?php echo $dataRow; ?>
+		<!---->
+
+		</table>
+	</div>
+	
+	<div class="grid-item">
+		<table id="driverTable">
+			<tr>
+				<th>Driver</th>	<th>Out</th> <th>Total</th><th>ID</th>
+			</tr>
+			<?php echo $dataRow2; ?>
+		</table>		
+		<br>	
+		<div id="map" style="height: 400px; width: 500px;"></div>		
+	</div>
+	
+	<div class="grid-item">
+		<button onclick="addOrder()">Add Pizza to Current Order</button> <button type='button' id="btnGeo" value='GetGeo' onclick='geocodeAddress()'>Finalize Order</button>
+		
+		<form action="Order.php" method="post" id="frmOrder">
+			<div class="grid-container-inner">
+				<div class="grid-item">
+					<br>
+						<input type="radio" name="type" value="2" checked> Cheese<br>
+						<input type="radio" name="type" value="1"> Pepperoni<br>
+						<input type="radio" name="type" value="3"> Deluxe <br><br>				
+						Quantity<br>				
+						<input type="radio" name="quant" value="1" checked> 1<br>
+						<input type="radio" name="quant" value="2"> 2<br>
+						<input type="radio" name="quant" value="3"> 3<br>
+						<input type="radio" name="quant" value="more" id="rbtnMore"> <input type="text" name="more" size="4" id="more"><br>					
+						<br><!--<input type="submit" value="Finalize Order" id="btnFinal">-->
+				</div>
+				
+				<div class="grid-item"> <br> 
+					<input type="radio" name="size" value="10" checked> 10"<br>
+					<input type="radio" name="size" value="12"> 12"<br>
+					<input type="radio" name="size" value="14"> 14" <br>
+					<input type="radio" name="size" value="16"> 16" <br>			
+				</div>
+				
+				<div class="grid-item"><br>
+					Current Order<br><br>				
+					Name:    <input type="text" name="name" id="tboxName"><br>
+					Address: <input type="text" name="address" id="tboxAddress"><br>
+					Phone:   <input type="text" name="phone" id="tboxPhone"><br>
+					<div class="grid-item-table">
+						<table id="currentOrder">
+							<tr>
+								<th>PizzaID</th><th>Size</th><th>Quantity</th>
+							</tr>				
+						</table>
+					</div>				
+				</div>
+			</div>
+			<input type="hidden" name="rowCount" value="0" id="hiddenRowCount">
+			<input type="hidden" name="geo" value="0" id="hiddenGeo">
+		</form>
+	</div>
+
+	<div class="grid-item-button">
+		<button onclick="assign()">Assign</button>
+		<button type='button' value='map' onclick='getMap()'>Map</button>
+		<button onclick="returnDriver()">Return</button>
+		<button onclick="driverInfo()">Driver Info</button>
+		
+		<p id="demo"></p>
+		<form action="Assign.php" method="post" id="frmAssign">
+			<table id="tblAssign">
+			</table>
+			<input type="hidden" name="rowCountTimes" value="0" id="hiddenRowCountTimes">
+			<input type="hidden" name="driverID1" id="hiddenDriverID">
+		</form>
+		<form action="Return.php" method="post" id="frmReturn">
+			<input type="hidden" name="driverID2" id="hiddenDriverID2">
+		</form>
+		<form action="DriverInfo.php" method="post" id="frmDriverInfo">
+			<input type="hidden" name="driverID3" id="hiddenDriverID3">
+		</form>
+	</div>
+	<div class="grid-item-button">
+		<button onclick="location.href = 'login.php';">Clock In</button>
+		<button onclick="location.href = 'Register.html';">Register</button>		
+	</div>
+	
+</div>
+
+<script>
+var stcharles = {lat: 38.796618, lng: -90.519106};
+var latt = [];
+var longi = [];
+var tickets = [];
+var markers = [];
+
+var coords = [];//["(38.801711, -90.533344)", "(38.8008275, -90.50752109999996)"];
+
+function addOrder()
+{
+	var table = document.getElementById("currentOrder"); //tell script what table we are using
+	var dispatchTable = document.getElementById("ordersTable");
+	var row = table.insertRow(1); //Where are we inserting new Row. Change to 1 to avoid putting rows above column headers.
+	//var dispatchRow = dispatchTable.insertRow(1);
+	var cells = [];
+	var dispatchCells = [];
+	var type;
+	var quant;
+	var size;
+	var rowCount = table.rows.length - 1;
+	
+	for(var i = 0; i < 3; i++)
+	{
+		cells.push(row.insertCell(i));
+	}
+	
+	/*
+	for (var i = 0; i < 5; i++)
+	{
+		dispatchCells.push(dispatchRow.insertCell(i));
+	}*/
+	
+	type = getRadio('type');
+	quant = getRadio('quant');
+	if (quant == "more")
+	{
+		quant = document.getElementById("more").value;
+	}
+	size = getRadio('size');
+	
+	type = type + " <input type='hidden' name='typeCell" + rowCount + "' value='" + type + "'>"; //builds html names with appropriate numbering
+	size = size + " <input type='hidden' name='sizeCell" + rowCount + "' value='" + size + "'>";
+	quant = quant + " <input type='hidden' name='quantCell" + rowCount + "' value='" + quant + "'>";
+	
+	cells[0].innerHTML = type;
+	cells[1].innerHTML = size;
+	cells[2].innerHTML = quant;
+	
+	var hiddenRowCount = document.getElementById("hiddenRowCount");
+	hiddenRowCount.value = "" + rowCount;	
+	
+}
+
+function getRadio(name)
+{
+	var rbtnType = document.getElementsByName(name);
+	var answer;
+	
+	for (var i = 0; i < rbtnType.length; i++)
+	{
+		if(rbtnType[i].checked)
+		{
+			answer = rbtnType[i].value;
+			break;
+		}
+	}
+	
+	return answer;
+}
+
+function getDriverRadio()
+{
+	var rbtnType = document.getElementsByName("driver");
+	var answer;
+	
+	for (var i = 0; i < rbtnType.length; i++)
+	{
+		if(rbtnType[i].checked)
+		{
+			//answer = rbtnType[i].value;
+			answer = rbtnType[i].parentElement.parentElement.children[3].innerHTML;
+			break;
+		}
+	}
+	
+	return answer;
+}
+
+
+function getMap()//Is this being used? Yes, gets addresses
+{
+	clearMarkers();
+	var cboxes = document.getElementsByName("cboxOrders");
+	var addresses = [];
+	
+	
+	for (var i = 0; i < cboxes.length; i++)
+	{
+		if(cboxes[i].checked)
+		{
+			coords.push(cboxes[i].parentElement.parentElement.children[5].innerHTML); //Confirmed gets coords
+			tickets.push(String(cboxes[i].parentElement.parentElement.children[0].innerHTML)); //gets ticket in the form of String
+		}
+	}
+	
+	for (i = 0; i < coords.length; i++) 
+	{
+		cleanCoords(coords[i]);
+    }
+	
+	//var ticketNumbers = ["1", "2"];
+
+        var map = new google.maps.Map(document.getElementById('map'), {
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+		  zoom: 14
+        });
+        var infowindow = new google.maps.InfoWindow();
+
+        var bounds = new google.maps.LatLngBounds();
+		
+		map.setCenter(stcharles);
+
+		if(latt.length > 0)
+		{
+			for (i = 0; i < latt.length; i++) 
+			{
+			  marker = new google.maps.Marker({
+				position: new google.maps.LatLng(latt[i], longi[i]),
+				label: tickets[i],
+				map: map
+			  });
+			  markers.push(marker);
+
+			  bounds.extend(marker.position);
+
+			}
+
+			map.fitBounds(bounds);
+		}
+	//Now we have strings with the addresses, need to query db for matching records, then get their coordinates
+	//Separate .php file?
+	//No, just store coordinates in hidden cell when initial query is done
+	//Then send array to function that creates markers on map
+	//document.getElementById("tboxAddress").value = addresses[1];
+}
+
+function clearMarkers()
+{
+	for (var i = 0; i < markers.length; i++) 
+	{
+          markers[i].setMap(null);
+    }
+	markers = [];
+	coords = [];
+    latt = [];
+    longi = [];
+    tickets = [];
+}
+
+function cleanCoords(coordins) 
+{
+	var temp = coordins.length;
+	coordins = coordins.slice(1, temp - 2); //remove parens
+
+	var comma = coordins.indexOf(",");
+	latt.push(Number(coordins.slice(0, (comma - 1))));
+	longi.push(Number(coordins.slice((comma + 2), (coordins.length - 1))));
+}
+
+function initMap() 
+{
+	var geocoder = new google.maps.Geocoder();	
+
+	document.getElementById('btnGeo').addEventListener('click', function() 
+	{
+		geocodeAddress(geocoder);
+	});
+	
+	initialize();
+
+}
+
+function geoTest() //This code here is dumb but I'm leaving it
+{
+	var geocoder2 = new google.maps.Geocoder();
+	geocodeAddress(geocoder2);
+}
+
+function geocodeAddress(geocoder) 
+{
+	//Validate input
+	//Rather than have 1 if statement with a long set of comparisons,
+	var goodToPost = true;
+	if(document.getElementById('tboxAddress').value == "")
+	{
+		goodToPost = false;
+	}
+	if(document.getElementById('tboxPhone').value == "")
+	{
+		goodToPost = false;
+	}
+	if(document.getElementById('tboxName').value == "")
+	{
+		goodToPost = false;
+	}	
+	if(document.getElementById('hiddenRowCount').value == "0") //check to see if the order has no food
+	{
+		goodToPost = false;
+	}
+	if(document.getElementById('rbtnMore').checked && document.getElementById('more').value == "") //Check to see if the More tbox is empty and checked
+	{
+		goodToPost = false;
+	}
+	
+	if(goodToPost)
+	{
+		var address = document.getElementById('tboxAddress').value; //Get address from textbox
+		geocoder.geocode({'address': address}, function(results, status) //Geocode
+		{
+		  if (status === 'OK') 
+		  {
+			document.getElementById('hiddenGeo').value = results[0].geometry.location;
+			var form = document.getElementById('frmOrder');
+			form.submit();
+			//document.getElementById('tboxAddress').value = results[0].geometry.location;
+		  } 
+		  else 
+		  {
+			alert('Geocode was not successful for the following reason: ' + status);
+		  }
+		});
+	}
+	
+	
+}
+
+function initialize() 
+{
+	
+	var map = new google.maps.Map(document.getElementById('map'),
+	{
+		zoom: 14,
+		center: stcharles
+	});
+}
+
+
+
+function assign() //Use the Time data in our Orders table to update records in database, then submit form
+{
+	var postTable = document.getElementById("tblAssign");
+	var row; //= table.insertRow(0); //Where are we inserting new Row.
+	var cell;
+	
+	var cboxes = document.getElementsByName("cboxOrders");
+	var times = [];
+	var form = document.getElementById('frmAssign');	
+	
+	for (var i = 0; i < cboxes.length; i++)
+	{
+		if(cboxes[i].checked)
+		{
+			times.push(cboxes[i].parentElement.parentElement.children[2].innerHTML); //gets time string
+		}
+	}
+
+	var hiddenRowCountTimes = document.getElementById("hiddenRowCountTimes");
+	hiddenRowCountTimes.value = "" + times.length;		
+	
+	for (var i = 0; i < times.length; i++) //for each time in our times array,
+	{
+		row = postTable.insertRow(0); //add a row in our tblAssign
+		cell = row.insertCell(0); //add a cell to that row
+		
+		cell.innerHTML = times[i] + " <input type='hidden' name='timeCell" + (i+1) + "' value='" + times[i] + "'>"; //Fill that cell with a time
+	}
+	
+	document.getElementById('hiddenDriverID').value = getDriverRadio(); //store driverID in a hidden input
+	//document.getElementById('tboxAddress').value = times[0];
+	//this table is in a form called frmAssign
+	//type = type + " <input type='hidden' name='typeCell" + rowCount + "' value='" + type + "'>";
+	//$type = $_POST["typeCell" . ($x + 1)];
+	
+
+//call form.submit();
+	form.submit();
+}
+
+function returnDriver()
+{
+	var form = document.getElementById('frmReturn');
+	document.getElementById('hiddenDriverID2').value = getDriverRadio();
+	form.submit();
+}
+
+function driverInfo()
+{
+	var form = document.getElementById('frmDriverInfo');
+	document.getElementById('hiddenDriverID3').value = getDriverRadio();
+	form.submit();
+}
+
+function toLogin()
+{
+	
+}
+
+</script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSQQk2QSlbIwTmslhD2pXzsna2_QTvjDg&callback=initMap">
+    </script>
+
+
+</body>
+</html>

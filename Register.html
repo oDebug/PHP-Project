@@ -1,0 +1,127 @@
+<?php
+if(isset($_POST['submit']))
+{
+$username = $_POST["username"];
+$password = $_POST["password"];
+$first = $_POST["first"];
+$last = $_POST["last"];
+$nick = $_POST["nick"];
+$driverID;
+$unique = false;
+$hashedPW = password_hash($password, PASSWORD_DEFAULT);
+
+$serverName = "studentwebfilesus.ipagemysql.com";
+$serverUser = "cmeier";
+$serverPW = "cmeier";
+$dbname = "cmeier";
+
+$conn = new mysqli($serverName, $serverUser, $serverPW, $dbname);
+if ($conn->connect_error)
+{
+	die("Connection Failed: ". $conn->connect_error);
+}
+
+$sql = "SELECT Username FROM Login WHERE Username = ? "; //check to see if username is unique
+
+if($stmt = $conn->prepare($sql))
+{
+	$stmt->bind_param("s", $username);	
+	$stmt->execute();	
+	$stmt->bind_result($boundUsername);
+	
+	$usernames = array();
+	//$passwords = array();
+	while ($stmt->fetch())
+	{
+		$usernames[] = $boundUsername;
+		//$passwords[] = $boundPW;
+	}
+	
+	if(empty($usernames))
+	{
+		$unique = true;
+	}
+}
+//$result = $conn->query($sql);
+
+if($unique) //if records are unique
+{
+	$sql = "INSERT INTO Drivers (First, Last, Nick, ClockedIn) VALUES (?, ?, ?, 0)";
+	
+	if($stmt = $conn->prepare($sql))
+	{
+		$stmt->bind_param("sss", $first, $last, $nick);	
+		$stmt->execute();		
+	}	
+	
+	//$conn->query($sql);
+
+	$sql = "SELECT DriverID FROM Drivers WHERE Nick = ?"; //get DriverID for our new driver
+	
+	if($stmt = $conn->prepare($sql)) 
+	{
+		$stmt->bind_param("s", $nick);	
+		$stmt->execute();		
+		$stmt->bind_result($boundDriverID);
+	
+		$driverIDs = array();
+		while ($stmt->fetch())
+		{
+			$driverIDs[] = $boundDriverID;
+		}
+		
+		if(!empty($driverIDs))
+		{
+			$driverID = $driverIDs[0];
+		}
+	}
+	
+	
+	
+	/*
+	$result = $conn->query($sql);
+	
+	while($row = $result->fetch_assoc())
+	{
+		$driverID = $row["DriverID"];	
+	}
+	*/
+
+	$sql = "INSERT INTO Login (Username , Password , DriverID) VALUES (?, ?, ?)";	
+	
+	if($stmt = $conn->prepare($sql))
+	{
+		$stmt->bind_param("ssi", $username, $hashedPW, $driverID);	
+		$stmt->execute();		
+	}		
+	
+	//$conn->query($sql);
+	
+	
+	//maybe do a timed redirect with a success prompt
+	echo '<script> window.open("OrdersPage.html", "_self");</script>';
+}
+else
+{
+	echo "invalid username";
+}
+
+$conn->close();
+}
+
+
+?>
+
+<html>
+<body>
+<form action="" method="Post">
+	Username: <input name="username" type="text" /><br> 
+	Password: <input name="password" type="password" /><br>
+	First Name: <input name="first" type="text" /><br>
+	Last Name: <input name="last" type="text" /><br>
+	Nick Name: <input name="nick" type="text" /><br>
+	<input type="submit" name = "submit" value="Submit" /></form>
+
+<button onclick="location.href = 'OrdersPage.html';">Orders Page</button>
+</body>
+</html>
